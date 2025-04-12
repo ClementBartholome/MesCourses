@@ -1,0 +1,6 @@
+﻿services:
+  mescoursesapi:
+    image: mescoursesapi
+    build:
+      context: .
+      dockerfile: MesCoursesApi/Dockerfile

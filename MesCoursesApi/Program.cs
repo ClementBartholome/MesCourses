@@ -8,11 +8,20 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<IngredientsService>();
 builder.Services.AddScoped<ShoppingListService>();
 builder.Services.AddScoped<CategoriesService>();
+
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+}
+else
+{
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseNpgsql(Environment.GetEnvironmentVariable("POSTGRESQLCONNSTR_prod")));
+}
 
 // Add CORS policy for Expo app
 builder.Services.AddCors(options =>

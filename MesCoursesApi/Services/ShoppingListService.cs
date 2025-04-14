@@ -103,6 +103,7 @@ public class ShoppingListService(AppDbContext context)
         {
             foreach (var lineDto in dto.Lines)
             {
+                if (shoppingList.Lines == null) continue;
                 var existingLine = shoppingList.Lines.FirstOrDefault(l => l.Id == lineDto.Id);
                 if (existingLine != null)
                 {
@@ -158,7 +159,7 @@ public class ShoppingListService(AppDbContext context)
             Unit = lineDto.Unit.ToEnum<UnitEnum>()
         };
 
-        shoppingList.Lines.Add(newLine);
+        shoppingList.Lines?.Add(newLine);
         shoppingList.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync();
@@ -175,7 +176,54 @@ public class ShoppingListService(AppDbContext context)
             CategoryName = lineDto.CategoryName
         };
     }
-    
+
+    public async Task<List<ShoppingListLineDto>?> AddMultipleLinesAsync(int shoppingListId,
+        List<ShoppingListLineDto> linesDto)
+    {
+        var shoppingList = await context.ShoppingLists
+            .Include(sl => sl.Lines)
+            .ThenInclude(line => line.Ingredient)
+            .FirstOrDefaultAsync(sl => sl.Id == shoppingListId);
+
+        if (shoppingList == null) return null;
+
+        var newLines = new List<ShoppingListLine>();
+
+        var lineMapping = new Dictionary<ShoppingListLine, ShoppingListLineDto>();
+
+        foreach (var lineDto in linesDto)
+        {
+            var newLine = new ShoppingListLine
+            {
+                ShoppingListId = shoppingListId,
+                IngredientId = lineDto.IngredientId,
+                Quantity = lineDto.Quantity,
+                IsChecked = lineDto.IsChecked,
+                Unit = lineDto.Unit.ToEnum<UnitEnum>()
+            };
+
+            newLines.Add(newLine);
+            lineMapping[newLine] = lineDto; 
+        }
+
+        shoppingList.Lines?.AddRange(newLines);
+        shoppingList.UpdatedAt = DateTime.UtcNow;
+
+        await context.SaveChangesAsync();
+
+        return newLines.Select(line => new ShoppingListLineDto
+        {
+            Id = line.Id,
+            ShoppingListId = line.ShoppingListId,
+            IngredientId = line.IngredientId,
+            Quantity = line.Quantity,
+            IsChecked = line.IsChecked,
+            Unit = line.Unit.GetDescription(),
+            IngredientName = lineMapping[line].IngredientName,
+            CategoryName = lineMapping[line].CategoryName
+        }).ToList();
+    }
+
     public async Task<bool> UpdateLineAsync(int shoppingListId, int lineId, ShoppingListLineDto lineDto)
     {
         var shoppingList = await context.ShoppingLists
@@ -184,11 +232,15 @@ public class ShoppingListService(AppDbContext context)
 
         if (shoppingList == null) return false;
 
-        var line = shoppingList.Lines.FirstOrDefault(l => l.Id == lineId);
-        if (line == null) return false;
+        if (shoppingList.Lines != null)
+        {
+            var line = shoppingList.Lines.FirstOrDefault(l => l.Id == lineId);
+            if (line == null) return false;
 
-        line.Quantity = lineDto.Quantity;
-        line.IsChecked = lineDto.IsChecked;
+            line.Quantity = lineDto.Quantity;
+            line.IsChecked = lineDto.IsChecked;
+        }
+
         shoppingList.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync();
@@ -203,10 +255,14 @@ public class ShoppingListService(AppDbContext context)
 
         if (shoppingList == null) return false;
 
-        var line = shoppingList.Lines.FirstOrDefault(l => l.Id == lineId);
-        if (line == null) return false;
+        if (shoppingList.Lines != null)
+        {
+            var line = shoppingList.Lines.FirstOrDefault(l => l.Id == lineId);
+            if (line == null) return false;
 
-        line.IsChecked = isChecked;
+            line.IsChecked = isChecked;
+        }
+
         shoppingList.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync();
@@ -219,13 +275,15 @@ public class ShoppingListService(AppDbContext context)
             .Include(sl => sl.Lines)
             .FirstOrDefaultAsync(sl => sl.Id == shoppingListId);
 
-        if (shoppingList == null) return false;
+        if (shoppingList?.Lines != null)
+        {
+            var line = shoppingList?.Lines.FirstOrDefault(l => l.Id == lineId);
+            if (line == null) return false;
 
-        var line = shoppingList.Lines.FirstOrDefault(l => l.Id == lineId);
-        if (line == null) return false;
+            shoppingList?.Lines.Remove(line);
+        }
 
-        shoppingList.Lines.Remove(line);
-        shoppingList.UpdatedAt = DateTime.UtcNow;
+        if (shoppingList != null) shoppingList.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync();
         return true;

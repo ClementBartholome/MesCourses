@@ -60,6 +60,17 @@ public class ShoppingListController(ShoppingListService service) : ControllerBas
 
         return CreatedAtAction(nameof(GetById), new { id = createdLine.ShoppingListId }, createdLine);
     }
+    
+    [HttpPost("{id:int}/lines/batch")]
+    public async Task<IActionResult> AddMultipleLines(int id, [FromBody] List<ShoppingListLineDto> linesDto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var createdLines = await service.AddMultipleLinesAsync(id, linesDto);
+        if (createdLines == null) return NotFound();
+
+        return CreatedAtAction(nameof(GetById), new { id = createdLines.First().ShoppingListId }, createdLines);
+    }
 
     [HttpPut("{id:int}/lines/{lineId:int}")]
     public async Task<IActionResult> UpdateLine(int id, int lineId, [FromBody] ShoppingListLineDto lineDto)
